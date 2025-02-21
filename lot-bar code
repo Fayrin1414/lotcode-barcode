@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lot Code & Barcode Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin-top: 10px;
+        }
+        .preview {
+            display: flex;
+            justify-content: space-around;
+        }
+        .preview img {
+            width: 45%;
+            border: 1px solid #ccc;
+            padding: 5px;
+        }
+        .result {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.0.2/tesseract.min.js"></script>
+    <script type="module">
+        import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/+esm';
+
+        async function extractTextFromImage(imageSrc) {
+            try {
+                const { data: { text } } = await Tesseract.recognize(imageSrc, 'eng');
+                return text.trim();
+            } catch (error) {
+                console.error("OCR Error:", error);
+                return "";
+            }
+        }
+
+        async function extractBarcodeFromImage(imageElement) {
+            try {
+                const codeReader = new BrowserMultiFormatReader();
+                const result = await codeReader.decodeFromImageElement(imageElement);
+                return result.text;
+            } catch (error) {
+                console.error("Barcode Error:", error);
+                return "";
+            }
+        }
+
+        function handleFileUpload(inputElement, imageElement) {
+            const file = inputElement.files[0];
+            if (file) {
+                const fileType = file.name.split('.').pop().toLowerCase();
+                if (fileType !== "jpg") {
+                    alert("Only JPG files are allowed.");
+                    inputElement.value = "";
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imageElement.src = e.target.result;
+                    if (inputElement.id === 'imageInput') {
+                        setTimeout(compareImages, 1000);
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        document.getElementById('referenceInput').addEventListener('change', function() {
+            handleFileUpload(this, document.getElementById('referenceImage'));
+        });
+
+        document.getElementById('imageInput').addEventListener('change', function() {
+            handleFileUpload(this, document.getElementById('uploadedImage'));
+        });
+
+        async function compareImages() {
+            const refImage = document.getElementById('referenceImage');
+            const uploadedImage = document.getElementById('uploadedImage');
+
+            if (refImage.src && uploadedImage.src) {
+                const refText = await extractTextFromImage(refImage.src);
+                const uploadedText = await extractTextFromImage(uploadedImage.src);
+                const refBarcode = await extractBarcodeFromImage(refImage);
+                const uploadedBarcode = await extractBarcodeFromImage(uploadedImage);
+
+                const resultElement = document.getElementById('result');
+                let resultMessage = "";
+
+                if (refText && uploadedText) {
+                    if (refText === uploadedText) {
+                        resultMessage += "✅ Text Match: Lot code is correct!\n";
+                    } else {
+                        resultMessage += "❌ Text Mismatch: Lot code does not match!\n";
+                    }
+                } else {
+                    resultMessage += "⚠️ Unable to extract text from one or both images.\n";
+                }
+
+                if (refBarcode && uploadedBarcode) {
+                    if (refBarcode === uploadedBarcode) {
+                        resultMessage += "✅ Barcode Match: Lot code barcode is correct!\n";
+                    } else {
+                        resultMessage += "❌ Barcode Mismatch: Lot code barcode does not match!\n";
+                    }
+                } else {
+                    resultMessage += "⚠️ Unable to extract barcode from one or both images.\n";
+                }
+
+                resultElement.textContent = resultMessage;
+                resultElement.style.color = resultMessage.includes("❌") ? 'red' : 'green';
+            }
+        }
+    </script>
+</head>
+<body>
+    <h2>Lot Code & Barcode Checker</h2>
+    <div class="container">
+        <input type="file" id="referenceInput" accept=".jpg, .JPG">
+        <input type="file" id="imageInput" accept=".jpg, .JPG" capture="environment">
+        <div class="preview">
+            <div>
+                <p>Uploaded Image</p>
+                <img id="uploadedImage" src="" alt="Uploaded Image">
+            </div>
+            <div>
+                <p>Reference Image</p>
+                <img id="referenceImage" src="" alt="Reference Image">
+            </div>
+        </div>
+        <p class="result" id="result">Waiting for comparison...</p>
+    </div>
+</body>
+</html>
